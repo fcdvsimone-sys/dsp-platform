@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Driver {
+  id            String   @id @default(cuid())
+  employeeId    String   @unique
+  firstName     String
+  lastName      String
+  phone         String?
+  email         String?
+  status        String   @default("active") // active, inactive, terminated
+  hireDate      DateTime?
+  terminatedAt  DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  scorecards    Scorecard[]
+  coachings     Coaching[]
+}
+
+model Scorecard {
+  id            String   @id @default(cuid())
+  driverId      String
+  weekOf        DateTime
+  overallScore  String?  // Fantastic, Great, Fair, Poor
+  fico          Float?
+  seatbelt      Float?
+  distraction   Float?
+  speeding      Float?
+  deliveryCompletion Float?
+  photoOnDelivery    Float?
+  dnr           Int?     // Do Not Restock
+  podOpportunities   Int?
+  createdAt     DateTime @default(now())
+
+  driver        Driver   @relation(fields: [driverId], references: [id])
+
+  @@unique([driverId, weekOf])
+}
+
+model Coaching {
+  id            String   @id @default(cuid())
+  driverId      String
+  type          String   // verbal, written, final, termination
+  category      String   // scorecard, attendance, conduct, safety, other
+  description   String
+  actionPlan    String?
+  conductedBy   String
+  conductedAt   DateTime @default(now())
+  signedAt      DateTime?
+  signatureUrl  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  driver        Driver   @relation(fields: [driverId], references: [id])
+}
