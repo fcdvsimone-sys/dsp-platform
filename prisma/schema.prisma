@@ -8,17 +8,20 @@ datasource db {
 }
 
 model Driver {
-  id            String   @id @default(cuid())
-  employeeId    String   @unique
-  firstName     String
-  lastName      String
-  phone         String?
-  email         String?
-  status        String   @default("active") // active, inactive, terminated
-  hireDate      DateTime?
-  terminatedAt  DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             String   @id @default(cuid())
+  employeeId     String   @unique  // Amazon TransporterID
+  firstName      String
+  lastName       String
+  phone          String?           // personal phone
+  workPhone      String?
+  email          String?
+  status         String   @default("active") // active, inactive, terminated
+  qualifications String?           // CDV, EDV, Step Van, etc.
+  idExpiration   DateTime?
+  hireDate       DateTime?
+  terminatedAt   DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   scorecards    Scorecard[]
   coachings     Coaching[]
