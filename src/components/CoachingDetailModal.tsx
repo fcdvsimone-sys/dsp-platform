@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { X, CheckCircle, Clock, Printer, AlertTriangle } from "lucide-react";
+import { X, CheckCircle, Clock, Printer, AlertTriangle, MessageSquare, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import SignaturePad from "./SignaturePad";
 
@@ -59,6 +59,9 @@ export default function CoachingDetailModal({
   const [signedAt, setSignedAt] = useState(coaching.signedAt);
   const [sigUrl, setSigUrl] = useState(coaching.signatureUrl);
   const [showSignPad, setShowSignPad] = useState(false);
+  const [smsSending, setSmsSending] = useState(false);
+  const [smsStatus, setSmsStatus] = useState<"idle" | "sent" | "error">("idle");
+  const [smsError, setSmsError] = useState("");
 
   async function submitSignature() {
     if (!signatureData) return;
@@ -84,6 +87,23 @@ export default function CoachingDetailModal({
     window.print();
   }
 
+  async function sendSms() {
+    setSmsSending(true);
+    setSmsStatus("idle");
+    setSmsError("");
+    try {
+      const res = await fetch(`/api/coachings/${coaching.id}/sms`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Unknown error");
+      setSmsStatus("sent");
+    } catch (e) {
+      setSmsError(e instanceof Error ? e.message : String(e));
+      setSmsStatus("error");
+    } finally {
+      setSmsSending(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" id="coaching-print">
@@ -107,6 +127,25 @@ export default function CoachingDetailModal({
           </div>
           <div className="flex items-center gap-2">
             <button
+              onClick={sendSms}
+              disabled={smsSending || smsStatus === "sent"}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium print:hidden transition-colors ${
+                smsStatus === "sent"
+                  ? "bg-green-100 text-green-700"
+                  : smsStatus === "error"
+                  ? "bg-red-100 text-red-700 hover:bg-red-200"
+                  : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+              }`}
+              title="Send coaching notice to driver via SMS"
+            >
+              {smsSending ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <MessageSquare size={14} />
+              )}
+              {smsStatus === "sent" ? "Sent!" : smsStatus === "error" ? "Retry" : "Text Driver"}
+            </button>
+            <button
               onClick={print}
               className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 print:hidden"
               title="Print"
@@ -118,6 +157,14 @@ export default function CoachingDetailModal({
         </div>
 
         <div className="p-6 space-y-6">
+          {/* SMS error */}
+          {smsStatus === "error" && smsError && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+              <AlertTriangle size={14} className="text-red-500 mt-0.5 shrink-0" />
+              <p className="text-sm text-red-700">{smsError}</p>
+            </div>
+          )}
+
           {/* Status banner */}
           {signed ? (
             <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-lg px-4 py-3">

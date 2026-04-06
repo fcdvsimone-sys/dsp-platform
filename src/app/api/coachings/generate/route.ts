@@ -3,8 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import Anthropic from "@anthropic-ai/sdk";
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -58,11 +56,9 @@ export async function POST(req: NextRequest) {
     suggestedType = priorCoachingCount >= 2 ? "final" : priorCoachingCount >= 1 ? "written" : "verbal";
   } else if (standing === "Bronze") {
     suggestedType = priorCoachingCount >= 1 ? "written" : "verbal";
-  } else {
-    suggestedType = "verbal";
   }
 
-  // Build metric flags for the prompt
+  // Build metric flags
   const flags: string[] = [];
   if (scorecard.dcr !== null && scorecard.dcr < 98) flags.push(`DCR at ${scorecard.dcr}% (target ≥ 98%)`);
   if (scorecard.pod !== null && scorecard.pod < 95) flags.push(`POD at ${scorecard.pod}% (target ≥ 95%)`);
@@ -95,29 +91,32 @@ ${trendSummary}
 
 Write a professional coaching note with two clearly labeled sections:
 
-1. **Description**: 2-3 paragraphs. Describe the performance issue factually and professionally. Reference the specific week, the standing tier, and mention the problematic metrics. Note whether performance is declining, fluctuating, or has been consistently below standard. Keep the tone constructive but clear about expectations.
+1. Description: 2-3 paragraphs. Describe the performance issue factually and professionally. Reference the specific week, the standing tier, and mention the problematic metrics. Note whether performance is declining, fluctuating, or has been consistently below standard. Keep the tone constructive but clear about expectations.
 
-2. **Action Plan**: A numbered list of 4-6 specific, actionable steps the driver must take to improve. Include specific targets, timeline (e.g., "by next week's scorecard"), and any resources or tools available. End with a statement about the consequences of continued non-compliance.
+2. Action Plan: A numbered list of 4-6 specific, actionable steps the driver must take to improve. Include specific targets, timeline, and any resources available. End with a statement about the consequences of continued non-compliance.
 
-Format the response as JSON with keys "description" and "actionPlan". Do not include markdown code fences.`;
+Respond with ONLY valid JSON in this exact format, no markdown fences:
+{"description":"...","actionPlan":"..."}`;
 
   try {
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
     const message = await client.messages.create({
       model: "claude-opus-4-6",
       max_tokens: 1024,
       messages: [{ role: "user", content: prompt }],
     });
 
-    const raw = message.content[0].type === "text" ? message.content[0].text : "";
+    const raw = message.content[0].type === "text" ? message.content[0].text.trim() : "";
 
-    // Parse the JSON response
     let parsed: { description: string; actionPlan: string };
     try {
-      parsed = JSON.parse(raw);
+      // Strip any accidental markdown fences
+      const clean = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+      parsed = JSON.parse(clean);
     } catch {
-      // If Claude didn't return pure JSON, extract from fences or use raw
-      const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]+?)```/);
-      parsed = jsonMatch ? JSON.parse(jsonMatch[1]) : { description: raw, actionPlan: "" };
+      // Fallback: use raw as description
+      parsed = { description: raw, actionPlan: "" };
     }
 
     return NextResponse.json({
@@ -128,7 +127,8 @@ Format the response as JSON with keys "description" and "actionPlan". Do not inc
       weekOf: weekStr,
     });
   } catch (err) {
-    console.error("Claude API error:", err);
-    return NextResponse.json({ error: "Failed to generate coaching note" }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("Claude API error:", message);
+    return NextResponse.json({ error: `Claude API error: ${message}` }, { status: 500 });
   }
 }
