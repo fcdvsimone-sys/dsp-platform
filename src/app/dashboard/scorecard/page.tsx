@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Upload, TrendingUp, AlertTriangle, ChevronDown } from "lucide-react";
+import { Upload, TrendingUp, AlertTriangle, ChevronDown, Sparkles } from "lucide-react";
 import { format } from "date-fns";
 import ImportScorecardModal from "@/components/ImportScorecardModal";
+import GenerateCoachingModal from "@/components/GenerateCoachingModal";
 
 type Scorecard = {
   id: string;
@@ -66,6 +67,8 @@ function avg(nums: (number | null)[]): number | null {
   return Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 100) / 100;
 }
 
+type GenerateTarget = { driver: Scorecard["driver"]; scorecard: Scorecard } | null;
+
 export default function ScorecardPage() {
   const [weeks, setWeeks] = useState<string[]>([]);
   const [selectedWeek, setSelectedWeek] = useState<string>("");
@@ -73,6 +76,7 @@ export default function ScorecardPage() {
   const [loading, setLoading] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [filter, setFilter] = useState<"all" | "at-risk">("all");
+  const [generateTarget, setGenerateTarget] = useState<GenerateTarget>(null);
 
   async function loadWeeks() {
     const res = await fetch("/api/scorecards?weeks=1");
@@ -258,11 +262,14 @@ export default function ScorecardPage() {
                       <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">POD</th>
                       <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">CDF DPMO</th>
                       <th className="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Pkgs</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {sorted.map((s) => (
-                      <tr key={s.id} className={`hover:bg-gray-50 ${s.overallStanding && AT_RISK.includes(s.overallStanding) ? "bg-red-50/30" : ""}`}>
+                    {sorted.map((s) => {
+                      const isAtRisk = s.overallStanding && AT_RISK.includes(s.overallStanding);
+                      return (
+                      <tr key={s.id} className={`hover:bg-gray-50 ${isAtRisk ? "bg-red-50/30" : ""}`}>
                         <td className="px-5 py-3.5 sticky left-0 bg-white">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold text-xs shrink-0">
@@ -297,8 +304,19 @@ export default function ScorecardPage() {
                         <td className="px-5 py-3.5 text-right text-sm text-gray-600">
                           {s.packagesDelivered?.toLocaleString() ?? "—"}
                         </td>
+                        <td className="px-5 py-3.5">
+                          {isAtRisk && (
+                            <button
+                              onClick={() => setGenerateTarget({ driver: s.driver, scorecard: s })}
+                              className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg whitespace-nowrap"
+                            >
+                              <Sparkles size={12} /> Coach
+                            </button>
+                          )}
+                        </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               )}
@@ -315,6 +333,15 @@ export default function ScorecardPage() {
         <ImportScorecardModal
           onClose={() => setShowImport(false)}
           onImported={handleImported}
+        />
+      )}
+
+      {generateTarget && (
+        <GenerateCoachingModal
+          driver={generateTarget.driver}
+          scorecard={generateTarget.scorecard}
+          onClose={() => setGenerateTarget(null)}
+          onCreated={() => setGenerateTarget(null)}
         />
       )}
     </div>
