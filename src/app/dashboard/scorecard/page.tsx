@@ -305,14 +305,16 @@ export default function ScorecardPage() {
                           {s.packagesDelivered?.toLocaleString() ?? "—"}
                         </td>
                         <td className="px-5 py-3.5">
-                          {isAtRisk && (
-                            <button
-                              onClick={() => setGenerateTarget({ driver: s.driver, scorecard: s })}
-                              className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg whitespace-nowrap"
-                            >
-                              <Sparkles size={12} /> Coach
-                            </button>
-                          )}
+                          <button
+                            onClick={() => setGenerateTarget({ driver: s.driver, scorecard: s })}
+                            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg whitespace-nowrap ${
+                              isAtRisk
+                                ? "bg-purple-600 hover:bg-purple-700 text-white"
+                                : "bg-gray-100 hover:bg-gray-200 text-gray-600"
+                            }`}
+                          >
+                            <Sparkles size={12} /> Coach
+                          </button>
                         </td>
                       </tr>
                       );
