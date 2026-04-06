@@ -7,59 +7,63 @@ import ImportScorecardModal from "@/components/ImportScorecardModal";
 type Scorecard = {
   id: string;
   weekOf: string;
-  overallScore: string | null;
+  overallStanding: string | null;
+  overallScore: number | null;
+  speedingRate: number | null;
+  seatbeltRate: number | null;
+  distractionRate: number | null;
+  signalViolationRate: number | null;
+  followingDistanceRate: number | null;
+  cdfDpmo: number | null;
+  ced: number | null;
+  dcr: number | null;
+  dsb: number | null;
+  pod: number | null;
+  psb: number | null;
+  packagesDelivered: number | null;
   fico: number | null;
-  seatbelt: number | null;
-  distraction: number | null;
-  speeding: number | null;
-  deliveryCompletion: number | null;
-  photoOnDelivery: number | null;
-  dnr: number | null;
-  podOpportunities: number | null;
-  driver: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    employeeId: string;
-    status: string;
-  };
+  driver: { id: string; firstName: string; lastName: string; employeeId: string; status: string };
 };
 
-const scoreTier: Record<string, { bg: string; text: string; rank: number }> = {
-  Fantastic: { bg: "bg-green-100", text: "text-green-700", rank: 4 },
-  Great:     { bg: "bg-blue-100",  text: "text-blue-700",  rank: 3 },
-  Fair:      { bg: "bg-yellow-100",text: "text-yellow-700",rank: 2 },
-  Poor:      { bg: "bg-red-100",   text: "text-red-700",   rank: 1 },
+const standingConfig: Record<string, { bg: string; text: string; rank: number }> = {
+  Platinum:        { bg: "bg-violet-100", text: "text-violet-700", rank: 5 },
+  Gold:            { bg: "bg-yellow-100", text: "text-yellow-700", rank: 4 },
+  Silver:          { bg: "bg-gray-100",   text: "text-gray-600",   rank: 3 },
+  Bronze:          { bg: "bg-orange-100", text: "text-orange-700", rank: 2 },
+  "Below Standard":{ bg: "bg-red-100",    text: "text-red-700",    rank: 1 },
 };
 
-function ScoreBadge({ score }: { score: string | null }) {
-  if (!score) return <span className="text-gray-400 text-sm">—</span>;
-  const tier = scoreTier[score];
-  if (!tier) return <span className="text-sm text-gray-600">{score}</span>;
+const AT_RISK = ["Silver", "Bronze", "Below Standard"];
+
+function StandingBadge({ standing }: { standing: string | null }) {
+  if (!standing) return <span className="text-gray-400 text-sm">—</span>;
+  const cfg = standingConfig[standing];
+  if (!cfg) return <span className="text-sm text-gray-600">{standing}</span>;
   return (
-    <span className={`text-xs font-medium px-2 py-1 rounded-full ${tier.bg} ${tier.text}`}>
-      {score}
+    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${cfg.bg} ${cfg.text}`}>
+      {standing}
     </span>
   );
 }
 
-function MetricCell({ value, suffix = "%", warn, danger }: {
-  value: number | null;
-  suffix?: string;
-  warn?: number;
-  danger?: number;
-}) {
+// Rate metrics: lower is better — color red if elevated
+function RateCell({ value }: { value: number | null }) {
   if (value === null) return <span className="text-gray-400 text-sm">—</span>;
-  let color = "text-gray-700";
-  if (danger !== undefined && value <= danger) color = "text-red-600 font-semibold";
-  else if (warn !== undefined && value <= warn) color = "text-yellow-600 font-semibold";
-  return <span className={`text-sm ${color}`}>{value}{suffix}</span>;
+  const color = value > 0.3 ? "text-red-600 font-semibold" : value > 0.1 ? "text-yellow-600 font-semibold" : "text-gray-700";
+  return <span className={`text-sm ${color}`}>{value.toFixed(2)}</span>;
+}
+
+// Percentage metrics: higher is better
+function PctCell({ value, warn = 98, danger = 95 }: { value: number | null; warn?: number; danger?: number }) {
+  if (value === null) return <span className="text-gray-400 text-sm">—</span>;
+  const color = value < danger ? "text-red-600 font-semibold" : value < warn ? "text-yellow-600 font-semibold" : "text-gray-700";
+  return <span className={`text-sm ${color}`}>{value}%</span>;
 }
 
 function avg(nums: (number | null)[]): number | null {
-  const valid = nums.filter((n): n is number => n !== null);
-  if (!valid.length) return null;
-  return Math.round((valid.reduce((a, b) => a + b, 0) / valid.length) * 10) / 10;
+  const v = nums.filter((n): n is number => n !== null);
+  if (!v.length) return null;
+  return Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 100) / 100;
 }
 
 export default function ScorecardPage() {
@@ -94,39 +98,33 @@ export default function ScorecardPage() {
     if (selectedWeek) loadScorecards(selectedWeek);
   }
 
-  const atRisk = scorecards.filter(
-    (s) => s.overallScore === "Fair" || s.overallScore === "Poor"
-  );
-
+  const atRisk = scorecards.filter((s) => s.overallStanding && AT_RISK.includes(s.overallStanding));
   const displayed = filter === "at-risk" ? atRisk : scorecards;
-
   const sorted = [...displayed].sort((a, b) => {
-    const ra = scoreTier[a.overallScore ?? ""]?.rank ?? 99;
-    const rb = scoreTier[b.overallScore ?? ""]?.rank ?? 99;
+    const ra = standingConfig[a.overallStanding ?? ""]?.rank ?? 99;
+    const rb = standingConfig[b.overallStanding ?? ""]?.rank ?? 99;
     return ra - rb;
   });
 
   // Summary stats
-  const avgFico = avg(scorecards.map((s) => s.fico));
-  const avgSeatbelt = avg(scorecards.map((s) => s.seatbelt));
-  const avgDistraction = avg(scorecards.map((s) => s.distraction));
-  const avgSpeeding = avg(scorecards.map((s) => s.speeding));
-
-  const tierCounts = { Fantastic: 0, Great: 0, Fair: 0, Poor: 0 };
+  const tierCounts = { Platinum: 0, Gold: 0, Silver: 0, Bronze: 0, "Below Standard": 0 };
   for (const s of scorecards) {
-    if (s.overallScore && s.overallScore in tierCounts) {
-      tierCounts[s.overallScore as keyof typeof tierCounts]++;
+    if (s.overallStanding && s.overallStanding in tierCounts) {
+      tierCounts[s.overallStanding as keyof typeof tierCounts]++;
     }
   }
+  const avgScore = avg(scorecards.map((s) => s.overallScore));
+  const avgDcr = avg(scorecards.map((s) => s.dcr));
+  const avgPod = avg(scorecards.map((s) => s.pod));
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-8 py-8">
+      <div className="max-w-full mx-auto px-8 py-8">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Scorecard</h1>
-            <p className="text-gray-500 mt-1">Amazon Cortex weekly performance metrics</p>
+            <p className="text-gray-500 mt-1">Amazon Cortex weekly driver performance</p>
           </div>
           <div className="flex gap-3 items-center">
             {weeks.length > 0 && (
@@ -158,7 +156,7 @@ export default function ScorecardPage() {
           <div className="bg-white rounded-xl border border-gray-200 p-16 text-center">
             <TrendingUp size={48} className="mx-auto text-gray-300 mb-4" />
             <h3 className="text-lg font-semibold text-gray-600 mb-2">No scorecards yet</h3>
-            <p className="text-gray-400 text-sm mb-6">Import your Cortex scorecard CSV to get started</p>
+            <p className="text-gray-400 text-sm mb-6">Export the driver scorecard from Cortex and import the CSV</p>
             <button
               onClick={() => setShowImport(true)}
               className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 font-medium"
@@ -168,12 +166,12 @@ export default function ScorecardPage() {
           </div>
         ) : (
           <>
-            {/* Summary Cards */}
+            {/* Summary cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Avg FICO</p>
-                <p className={`text-3xl font-bold ${avgFico !== null && avgFico < 700 ? "text-red-600" : avgFico !== null && avgFico < 750 ? "text-yellow-600" : "text-gray-900"}`}>
-                  {avgFico ?? "—"}
+                <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Avg Score</p>
+                <p className={`text-3xl font-bold ${avgScore !== null && avgScore < 85 ? "text-red-600" : avgScore !== null && avgScore < 90 ? "text-yellow-600" : "text-gray-900"}`}>
+                  {avgScore ?? "—"}
                 </p>
               </div>
               <div className="bg-white rounded-xl border border-gray-200 p-5">
@@ -184,41 +182,36 @@ export default function ScorecardPage() {
                 </p>
               </div>
               <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Avg Seatbelt</p>
-                <p className={`text-3xl font-bold ${avgSeatbelt !== null && avgSeatbelt < 95 ? "text-red-600" : "text-gray-900"}`}>
-                  {avgSeatbelt !== null ? `${avgSeatbelt}%` : "—"}
+                <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Avg DCR</p>
+                <p className={`text-3xl font-bold ${avgDcr !== null && avgDcr < 95 ? "text-red-600" : avgDcr !== null && avgDcr < 98 ? "text-yellow-600" : "text-gray-900"}`}>
+                  {avgDcr !== null ? `${avgDcr}%` : "—"}
                 </p>
               </div>
               <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Avg Distraction</p>
-                <p className={`text-3xl font-bold ${avgDistraction !== null && avgDistraction > 5 ? "text-red-600" : "text-gray-900"}`}>
-                  {avgDistraction !== null ? `${avgDistraction}%` : "—"}
+                <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Avg POD</p>
+                <p className={`text-3xl font-bold ${avgPod !== null && avgPod < 90 ? "text-red-600" : avgPod !== null && avgPod < 95 ? "text-yellow-600" : "text-gray-900"}`}>
+                  {avgPod !== null ? `${avgPod}%` : "—"}
                 </p>
               </div>
             </div>
 
-            {/* Tier breakdown bar */}
+            {/* Tier distribution */}
             {scorecards.length > 0 && (
               <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
-                <p className="text-sm font-semibold text-gray-700 mb-3">Score Distribution</p>
-                <div className="flex gap-4 items-center">
-                  {(["Fantastic", "Great", "Fair", "Poor"] as const).map((tier) => {
+                <p className="text-sm font-semibold text-gray-700 mb-3">Standing Distribution</p>
+                <div className="flex gap-4">
+                  {(["Platinum", "Gold", "Silver", "Bronze", "Below Standard"] as const).map((tier) => {
                     const count = tierCounts[tier];
                     const pct = scorecards.length ? Math.round((count / scorecards.length) * 100) : 0;
-                    const t = scoreTier[tier];
+                    const cfg = standingConfig[tier];
                     return (
-                      <div key={tier} className="flex items-center gap-2 flex-1">
-                        <div className="flex-1">
-                          <div className="flex justify-between text-xs mb-1">
-                            <span className={`font-medium ${t.text}`}>{tier}</span>
-                            <span className="text-gray-500">{count} ({pct}%)</span>
-                          </div>
-                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full ${t.bg.replace("bg-", "bg-").replace("-100", "-400")}`}
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
+                      <div key={tier} className="flex-1">
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className={`font-medium ${cfg.text}`}>{tier}</span>
+                          <span className="text-gray-400">{count} ({pct}%)</span>
+                        </div>
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${cfg.bg}`} style={{ width: `${pct}%`, filter: "brightness(0.85)" }} />
                         </div>
                       </div>
                     );
@@ -250,26 +243,29 @@ export default function ScorecardPage() {
               ) : sorted.length === 0 ? (
                 <div className="p-12 text-center text-gray-400">No results</div>
               ) : (
-                <table className="w-full min-w-[900px]">
+                <table className="w-full" style={{ minWidth: 1100 }}>
                   <thead>
                     <tr className="border-b border-gray-200 bg-gray-50">
-                      <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Driver</th>
-                      <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Score</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">FICO</th>
+                      <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50">Driver</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Standing</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Score</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Speeding</th>
                       <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Seatbelt</th>
                       <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Distraction</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Speeding</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Signal Viol.</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Following Dist.</th>
                       <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">DCR</th>
                       <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">POD</th>
-                      <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">DNR</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">CDF DPMO</th>
+                      <th className="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Pkgs</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {sorted.map((s) => (
-                      <tr key={s.id} className={`hover:bg-gray-50 ${(s.overallScore === "Poor" || s.overallScore === "Fair") ? "bg-red-50/30" : ""}`}>
-                        <td className="px-6 py-3.5">
+                      <tr key={s.id} className={`hover:bg-gray-50 ${s.overallStanding && AT_RISK.includes(s.overallStanding) ? "bg-red-50/30" : ""}`}>
+                        <td className="px-5 py-3.5 sticky left-0 bg-white">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold text-xs">
+                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold text-xs shrink-0">
                               {s.driver.firstName[0]}{s.driver.lastName[0]}
                             </div>
                             <div>
@@ -278,39 +274,28 @@ export default function ScorecardPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-3.5"><ScoreBadge score={s.overallScore} /></td>
+                        <td className="px-4 py-3.5"><StandingBadge standing={s.overallStanding} /></td>
                         <td className="px-4 py-3.5 text-right">
-                          <MetricCell value={s.fico} suffix="" warn={750} danger={700} />
+                          <span className={`text-sm font-semibold ${(s.overallScore ?? 100) < 85 ? "text-red-600" : (s.overallScore ?? 100) < 90 ? "text-yellow-600" : "text-gray-700"}`}>
+                            {s.overallScore ?? "—"}
+                          </span>
                         </td>
+                        <td className="px-4 py-3.5 text-right"><RateCell value={s.speedingRate} /></td>
+                        <td className="px-4 py-3.5 text-right"><RateCell value={s.seatbeltRate} /></td>
+                        <td className="px-4 py-3.5 text-right"><RateCell value={s.distractionRate} /></td>
+                        <td className="px-4 py-3.5 text-right"><RateCell value={s.signalViolationRate} /></td>
+                        <td className="px-4 py-3.5 text-right"><RateCell value={s.followingDistanceRate} /></td>
+                        <td className="px-4 py-3.5 text-right"><PctCell value={s.dcr} warn={98} danger={95} /></td>
+                        <td className="px-4 py-3.5 text-right"><PctCell value={s.pod} warn={95} danger={90} /></td>
                         <td className="px-4 py-3.5 text-right">
-                          <MetricCell value={s.seatbelt} warn={97} danger={95} />
-                        </td>
-                        <td className="px-4 py-3.5 text-right">
-                          {s.distraction === null ? <span className="text-gray-400 text-sm">—</span> : (
-                            <span className={`text-sm ${s.distraction > 8 ? "text-red-600 font-semibold" : s.distraction > 5 ? "text-yellow-600 font-semibold" : "text-gray-700"}`}>
-                              {s.distraction}%
+                          {s.cdfDpmo !== null ? (
+                            <span className={`text-sm ${s.cdfDpmo > 1500 ? "text-red-600 font-semibold" : s.cdfDpmo > 1000 ? "text-yellow-600 font-semibold" : "text-gray-700"}`}>
+                              {s.cdfDpmo.toLocaleString()}
                             </span>
-                          )}
+                          ) : <span className="text-gray-400 text-sm">—</span>}
                         </td>
-                        <td className="px-4 py-3.5 text-right">
-                          {s.speeding === null ? <span className="text-gray-400 text-sm">—</span> : (
-                            <span className={`text-sm ${s.speeding > 8 ? "text-red-600 font-semibold" : s.speeding > 5 ? "text-yellow-600 font-semibold" : "text-gray-700"}`}>
-                              {s.speeding}%
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3.5 text-right">
-                          <MetricCell value={s.deliveryCompletion} warn={98} danger={95} />
-                        </td>
-                        <td className="px-4 py-3.5 text-right">
-                          <MetricCell value={s.photoOnDelivery} warn={95} danger={90} />
-                        </td>
-                        <td className="px-6 py-3.5 text-right">
-                          {s.dnr === null ? <span className="text-gray-400 text-sm">—</span> : (
-                            <span className={`text-sm ${s.dnr > 0 ? "text-red-600 font-semibold" : "text-gray-700"}`}>
-                              {s.dnr}
-                            </span>
-                          )}
+                        <td className="px-5 py-3.5 text-right text-sm text-gray-600">
+                          {s.packagesDelivered?.toLocaleString() ?? "—"}
                         </td>
                       </tr>
                     ))}
@@ -318,6 +303,10 @@ export default function ScorecardPage() {
                 </table>
               )}
             </div>
+
+            <p className="text-xs text-gray-400 mt-3">
+              Safety rates are per trip — lower is better. Rate &gt; 0.1 = caution, &gt; 0.3 = alert.
+            </p>
           </>
         )}
       </div>

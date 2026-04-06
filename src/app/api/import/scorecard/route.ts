@@ -3,33 +3,39 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import Papa from "papaparse";
 
-// Cortex scorecard CSV export columns (flexible mapping)
-type CortexScorecardRow = Record<string, string>;
+type CortexRow = Record<string, string>;
 
-function col(row: CortexScorecardRow, ...keys: string[]): string {
-  for (const key of keys) {
-    const found = Object.keys(row).find(
-      (k) => k.trim().toLowerCase() === key.toLowerCase()
-    );
-    if (found && row[found]?.trim()) return row[found].trim();
-  }
-  return "";
+// Parse "2026-W13" → Monday of that ISO week (UTC)
+function parseISOWeek(weekStr: string): Date | null {
+  const match = weekStr.trim().match(/^(\d{4})-W(\d{1,2})$/);
+  if (!match) return null;
+  const year = parseInt(match[1]);
+  const week = parseInt(match[2]);
+  // Jan 4 is always in ISO week 1
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const dow = jan4.getUTCDay() || 7; // Mon=1 … Sun=7
+  const monday1 = new Date(Date.UTC(year, 0, 4 - dow + 1));
+  return new Date(Date.UTC(
+    monday1.getUTCFullYear(),
+    monday1.getUTCMonth(),
+    monday1.getUTCDate() + (week - 1) * 7
+  ));
 }
 
-function parseFloat2(val: string): number | null {
-  const n = parseFloat(val.replace(/[^0-9.-]/g, ""));
+function f(row: CortexRow, key: string): string {
+  return (row[key] ?? "").trim();
+}
+
+function pFloat(val: string): number | null {
+  const cleaned = val.replace(/[^0-9.-]/g, "");
+  const n = parseFloat(cleaned);
   return isNaN(n) ? null : n;
 }
 
-function parseInt2(val: string): number | null {
-  const n = parseInt(val.replace(/[^0-9-]/g, ""), 10);
+function pInt(val: string): number | null {
+  const cleaned = val.replace(/[^0-9-]/g, "");
+  const n = parseInt(cleaned, 10);
   return isNaN(n) ? null : n;
-}
-
-function parseWeek(val: string): Date | null {
-  if (!val) return null;
-  const d = new Date(val);
-  return isNaN(d.getTime()) ? null : d;
 }
 
 export async function POST(req: NextRequest) {
@@ -41,7 +47,7 @@ export async function POST(req: NextRequest) {
   if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
 
   const text = await file.text();
-  const { data } = Papa.parse<CortexScorecardRow>(text, { header: true, skipEmptyLines: true });
+  const { data } = Papa.parse<CortexRow>(text, { header: true, skipEmptyLines: true });
 
   let created = 0;
   let updated = 0;
@@ -49,66 +55,54 @@ export async function POST(req: NextRequest) {
 
   for (const row of data) {
     try {
-      const transporterId =
-        col(row, "Transporter ID", "TransporterID", "Employee ID", "EmployeeID") ||
-        col(row, "Associate ID", "AssociateID");
-
+      const transporterId = f(row, "Transporter ID");
       if (!transporterId) continue;
 
-      const weekStr = col(row, "Week", "Week Of", "Week of", "WeekOf", "Date", "Period");
-      const weekOf = parseWeek(weekStr);
+      const weekStr = f(row, "Week");
+      const weekOf = parseISOWeek(weekStr);
       if (!weekOf) {
-        errors.push(`Row ${transporterId}: invalid or missing week date "${weekStr}"`);
+        errors.push(`${transporterId}: invalid week "${weekStr}"`);
         continue;
       }
 
       const driver = await prisma.driver.findUnique({ where: { employeeId: transporterId } });
       if (!driver) {
-        errors.push(`Row ${transporterId}: driver not found — import roster first`);
+        errors.push(`${transporterId} (${f(row, "Delivery Associate ")}): driver not found — import roster first`);
         continue;
       }
 
-      const overallScore =
-        col(row, "Overall Score", "Overall", "Score", "Tier", "Performance Tier") || null;
-      const fico = parseFloat2(col(row, "FICO", "FICO Score", "Fico"));
-      const seatbelt = parseFloat2(col(row, "Seatbelt", "Seatbelt %", "Seatbelt Rate", "SeatBelt"));
-      const distraction = parseFloat2(col(row, "Distraction", "Distraction %", "Distraction Rate", "Phone Distraction"));
-      const speeding = parseFloat2(col(row, "Speeding", "Speeding %", "Speeding Rate", "Speed"));
-      const deliveryCompletion = parseFloat2(
-        col(row, "Delivery Completion", "Delivery Completion Rate", "DCR", "Completion Rate", "DeliveryCompletion")
-      );
-      const photoOnDelivery = parseFloat2(
-        col(row, "Photo on Delivery", "POD", "Photo On Delivery", "PhotoOnDelivery", "Photo Compliance")
-      );
-      const dnr = parseInt2(col(row, "DNR", "Do Not Restock", "DoNotRestock"));
-      const podOpportunities = parseInt2(col(row, "POD Opportunities", "PODOpportunities", "Pod Opportunities"));
+      const scoreData = {
+        overallStanding:       f(row, "Overall Standing") || null,
+        overallScore:          pFloat(f(row, "Overall Score")),
+
+        // Safety rates (per trip)
+        speedingRate:          pFloat(f(row, "Speeding Event Rate (per trip)")),
+        seatbeltRate:          pFloat(f(row, "Seatbelt-Off Rate (per trip)")),
+        distractionRate:       pFloat(f(row, "Distractions Rate (per trip)")),
+        signalViolationRate:   pFloat(f(row, "Sign/ Signal Violations Rate (per trip)")),
+        followingDistanceRate: pFloat(f(row, "Following Distance Rate (per trip)")),
+
+        // Delivery metrics
+        cdfDpmo:               pInt(f(row, "CDF DPMO")),
+        ced:                   pFloat(f(row, "CED")),
+        dcr:                   pFloat(f(row, "DCR")),   // "99.9%" → 99.9
+        dsb:                   pFloat(f(row, "DSB")),
+        pod:                   pFloat(f(row, "POD")),   // "100.0%" → 100.0
+        psb:                   pFloat(f(row, "PSB")),
+        packagesDelivered:     pInt(f(row, "Packages Delivered")),
+
+        fico:                  pFloat(f(row, "FICO Score")),
+      };
 
       const existing = await prisma.scorecard.findUnique({
         where: { driverId_weekOf: { driverId: driver.id, weekOf } },
       });
 
-      const scoreData = {
-        overallScore,
-        fico,
-        seatbelt,
-        distraction,
-        speeding,
-        deliveryCompletion,
-        photoOnDelivery,
-        dnr,
-        podOpportunities,
-      };
-
       if (existing) {
-        await prisma.scorecard.update({
-          where: { id: existing.id },
-          data: scoreData,
-        });
+        await prisma.scorecard.update({ where: { id: existing.id }, data: scoreData });
         updated++;
       } else {
-        await prisma.scorecard.create({
-          data: { driverId: driver.id, weekOf, ...scoreData },
-        });
+        await prisma.scorecard.create({ data: { driverId: driver.id, weekOf, ...scoreData } });
         created++;
       }
     } catch (e) {

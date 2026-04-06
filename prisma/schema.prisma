@@ -28,21 +28,34 @@ model Driver {
 }
 
 model Scorecard {
-  id            String   @id @default(cuid())
-  driverId      String
-  weekOf        DateTime
-  overallScore  String?  // Fantastic, Great, Fair, Poor
-  fico          Float?
-  seatbelt      Float?
-  distraction   Float?
-  speeding      Float?
-  deliveryCompletion Float?
-  photoOnDelivery    Float?
-  dnr           Int?     // Do Not Restock
-  podOpportunities   Int?
-  createdAt     DateTime @default(now())
+  id                    String   @id @default(cuid())
+  driverId              String
+  weekOf                DateTime
 
-  driver        Driver   @relation(fields: [driverId], references: [id])
+  overallStanding       String?  // Platinum, Gold, Silver, Bronze, Below Standard
+  overallScore          Float?   // Numeric composite score (e.g. 98.38)
+
+  // Safety metrics — rate per trip (lower is better)
+  speedingRate          Float?   // Speeding Event Rate (per trip)
+  seatbeltRate          Float?   // Seatbelt-Off Rate (per trip)
+  distractionRate       Float?   // Distractions Rate (per trip)
+  signalViolationRate   Float?   // Sign/Signal Violations Rate (per trip)
+  followingDistanceRate Float?   // Following Distance Rate (per trip)
+
+  // Delivery metrics
+  cdfDpmo               Int?     // Contact Delivery Failure DPMO
+  ced                   Float?   // Customer Experience Defect
+  dcr                   Float?   // Delivery Completion Rate %
+  dsb                   Float?   // DSB
+  pod                   Float?   // Photo on Delivery %
+  psb                   Float?   // PSB
+  packagesDelivered     Int?
+
+  fico                  Float?   // FICO (may be empty in driver-level export)
+
+  createdAt             DateTime @default(now())
+
+  driver                Driver   @relation(fields: [driverId], references: [id])
 
   @@unique([driverId, weekOf])
 }

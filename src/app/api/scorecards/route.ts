@@ -9,7 +9,6 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const weekParam = searchParams.get("week");
 
-  // Get all available weeks
   if (searchParams.get("weeks") === "1") {
     const weeks = await prisma.scorecard.findMany({
       select: { weekOf: true },
@@ -26,16 +25,10 @@ export async function GET(req: NextRequest) {
     where,
     include: {
       driver: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          employeeId: true,
-          status: true,
-        },
+        select: { id: true, firstName: true, lastName: true, employeeId: true, status: true },
       },
     },
-    orderBy: [{ weekOf: "desc" }, { driver: { lastName: "asc" } }],
+    orderBy: [{ overallScore: "asc" }, { driver: { lastName: "asc" } }],
   });
 
   return NextResponse.json(scorecards);

@@ -17,14 +17,18 @@ import CoachingDetailModal from "@/components/CoachingDetailModal";
 type Scorecard = {
   id: string;
   weekOf: string;
-  overallScore: string | null;
+  overallStanding: string | null;
+  overallScore: number | null;
+  speedingRate: number | null;
+  seatbeltRate: number | null;
+  distractionRate: number | null;
+  signalViolationRate: number | null;
+  followingDistanceRate: number | null;
+  dcr: number | null;
+  pod: number | null;
+  cdfDpmo: number | null;
+  packagesDelivered: number | null;
   fico: number | null;
-  seatbelt: number | null;
-  distraction: number | null;
-  speeding: number | null;
-  deliveryCompletion: number | null;
-  photoOnDelivery: number | null;
-  dnr: number | null;
 };
 
 type Coaching = {
@@ -63,11 +67,12 @@ const statusColors: Record<string, string> = {
   terminated: "bg-red-100 text-red-700",
 };
 
-const scoreColors: Record<string, string> = {
-  Fantastic: "bg-green-100 text-green-700",
-  Great: "bg-blue-100 text-blue-700",
-  Fair: "bg-yellow-100 text-yellow-700",
-  Poor: "bg-red-100 text-red-700",
+const standingColors: Record<string, string> = {
+  Platinum:         "bg-violet-100 text-violet-700",
+  Gold:             "bg-yellow-100 text-yellow-700",
+  Silver:           "bg-gray-100 text-gray-600",
+  Bronze:           "bg-orange-100 text-orange-700",
+  "Below Standard": "bg-red-100 text-red-700",
 };
 
 const typeColors: Record<string, string> = {
@@ -151,8 +156,7 @@ export default function DriverProfilePage() {
     .reverse()
     .map((s) => ({
       week: format(new Date(s.weekOf), "M/d"),
-      fico: s.fico,
-      seatbelt: s.seatbelt,
+      score: s.overallScore,
     }));
 
   // Coaching enriched with driver field for CoachingDetailModal
@@ -197,11 +201,14 @@ export default function DriverProfilePage() {
                   </span>
                 </div>
                 <p className="text-sm text-gray-500">{driver.employeeId}</p>
-                {latestScore?.overallScore && (
+                {latestScore?.overallStanding && (
                   <div className="flex items-center gap-2 mt-2">
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${scoreColors[latestScore.overallScore] ?? "bg-gray-100 text-gray-600"}`}>
-                      {latestScore.overallScore}
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${standingColors[latestScore.overallStanding] ?? "bg-gray-100 text-gray-600"}`}>
+                      {latestScore.overallStanding}
                     </span>
+                    {latestScore.overallScore && (
+                      <span className="text-xs text-gray-500 font-medium">{latestScore.overallScore}</span>
+                    )}
                     <span className="text-xs text-gray-400">
                       week of {format(new Date(latestScore.weekOf), "MMM d")}
                     </span>
@@ -252,12 +259,12 @@ export default function DriverProfilePage() {
               <p className="text-2xl font-bold text-gray-900">{driver._count.coachings}</p>
               <p className="text-xs text-gray-500 mt-0.5">Coachings</p>
             </div>
-            {latestScore?.fico && (
+            {latestScore?.overallScore && (
               <div className="text-center">
-                <p className={`text-2xl font-bold ${latestScore.fico < 700 ? "text-red-600" : latestScore.fico < 750 ? "text-yellow-600" : "text-green-600"}`}>
-                  {latestScore.fico}
+                <p className={`text-2xl font-bold ${latestScore.overallScore < 85 ? "text-red-600" : latestScore.overallScore < 90 ? "text-yellow-600" : "text-green-600"}`}>
+                  {latestScore.overallScore}
                 </p>
-                <p className="text-xs text-gray-500 mt-0.5">Latest FICO</p>
+                <p className="text-xs text-gray-500 mt-0.5">Latest Score</p>
               </div>
             )}
             {driver.coachings.filter((c) => !c.signedAt).length > 0 && (
@@ -306,78 +313,80 @@ export default function DriverProfilePage() {
               </div>
             ) : (
               <>
-                {/* FICO trend chart */}
-                {chartData.some((d) => d.fico !== null) && (
+                {/* Score trend chart */}
+                {chartData.some((d) => d.score !== null) && (
                   <div className="bg-white rounded-xl border border-gray-200 p-5">
-                    <p className="text-sm font-semibold text-gray-700 mb-4">FICO Trend</p>
+                    <p className="text-sm font-semibold text-gray-700 mb-4">Score Trend</p>
                     <ResponsiveContainer width="100%" height={160}>
                       <LineChart data={chartData} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
                         <XAxis dataKey="week" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-                        <YAxis domain={[600, 900]} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={35} />
+                        <YAxis domain={[70, 100]} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={35} />
                         <Tooltip
                           contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}
-                          formatter={(v: number) => [v, "FICO"]}
+                          formatter={(v: number) => [v, "Score"]}
                         />
-                        <ReferenceLine y={750} stroke="#fbbf24" strokeDasharray="4 2" />
-                        <ReferenceLine y={700} stroke="#f87171" strokeDasharray="4 2" />
+                        <ReferenceLine y={90} stroke="#fbbf24" strokeDasharray="4 2" />
+                        <ReferenceLine y={85} stroke="#f87171" strokeDasharray="4 2" />
                         <Line
                           type="monotone"
-                          dataKey="fico"
-                          stroke="#3b82f6"
+                          dataKey="score"
+                          stroke="#7c3aed"
                           strokeWidth={2}
-                          dot={{ r: 3, fill: "#3b82f6" }}
+                          dot={{ r: 3, fill: "#7c3aed" }}
                           connectNulls
                         />
                       </LineChart>
                     </ResponsiveContainer>
                     <div className="flex gap-4 mt-2 justify-end">
-                      <span className="flex items-center gap-1 text-xs text-yellow-600"><span className="w-4 border-t-2 border-dashed border-yellow-400 inline-block" />750</span>
-                      <span className="flex items-center gap-1 text-xs text-red-400"><span className="w-4 border-t-2 border-dashed border-red-400 inline-block" />700</span>
+                      <span className="flex items-center gap-1 text-xs text-yellow-600"><span className="w-4 border-t-2 border-dashed border-yellow-400 inline-block" />90</span>
+                      <span className="flex items-center gap-1 text-xs text-red-400"><span className="w-4 border-t-2 border-dashed border-red-400 inline-block" />85</span>
                     </div>
                   </div>
                 )}
 
                 {/* Scorecard table */}
                 <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-                  <table className="w-full min-w-[700px]">
+                  <table className="w-full min-w-[900px]">
                     <thead>
                       <tr className="border-b border-gray-200 bg-gray-50">
                         <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Week</th>
-                        <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Score</th>
-                        <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">FICO</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Standing</th>
+                        <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Score</th>
+                        <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Speeding</th>
                         <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Seatbelt</th>
                         <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Distraction</th>
-                        <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Speeding</th>
                         <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">DCR</th>
-                        <th className="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">POD</th>
+                        <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">POD</th>
+                        <th className="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Pkgs</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {driver.scorecards.map((s, i) => (
-                        <tr key={s.id} className={`${i === 0 ? "bg-blue-50/30" : "hover:bg-gray-50"}`}>
+                        <tr key={s.id} className={`${i === 0 ? "bg-violet-50/30" : "hover:bg-gray-50"}`}>
                           <td className="px-5 py-3 text-sm text-gray-700 font-medium">
                             {format(new Date(s.weekOf), "MMM d, yyyy")}
-                            {i === 0 && <span className="ml-2 text-xs text-blue-500 font-normal">latest</span>}
+                            {i === 0 && <span className="ml-2 text-xs text-violet-500 font-normal">latest</span>}
                           </td>
                           <td className="px-4 py-3">
-                            {s.overallScore ? (
-                              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${scoreColors[s.overallScore] ?? "bg-gray-100 text-gray-600"}`}>
-                                {s.overallScore}
+                            {s.overallStanding ? (
+                              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${standingColors[s.overallStanding] ?? "bg-gray-100 text-gray-600"}`}>
+                                {s.overallStanding}
                               </span>
                             ) : <span className="text-gray-400">—</span>}
                           </td>
                           <td className="px-4 py-3 text-right text-sm">
-                            {s.fico !== null ? (
-                              <span className={s.fico < 700 ? "text-red-600 font-semibold" : s.fico < 750 ? "text-yellow-600 font-semibold" : "text-gray-700"}>
-                                {s.fico}
+                            {s.overallScore !== null ? (
+                              <span className={s.overallScore < 85 ? "text-red-600 font-semibold" : s.overallScore < 90 ? "text-yellow-600 font-semibold" : "text-gray-700"}>
+                                {s.overallScore}
                               </span>
                             ) : <span className="text-gray-400">—</span>}
                           </td>
-                          <td className="px-4 py-3 text-right text-sm text-gray-700">{s.seatbelt !== null ? `${s.seatbelt}%` : "—"}</td>
-                          <td className="px-4 py-3 text-right text-sm text-gray-700">{s.distraction !== null ? `${s.distraction}%` : "—"}</td>
-                          <td className="px-4 py-3 text-right text-sm text-gray-700">{s.speeding !== null ? `${s.speeding}%` : "—"}</td>
-                          <td className="px-4 py-3 text-right text-sm text-gray-700">{s.deliveryCompletion !== null ? `${s.deliveryCompletion}%` : "—"}</td>
-                          <td className="px-5 py-3 text-right text-sm text-gray-700">{s.photoOnDelivery !== null ? `${s.photoOnDelivery}%` : "—"}</td>
+                          <td className="px-4 py-3 text-right text-sm text-gray-700">{s.speedingRate !== null ? s.speedingRate.toFixed(2) : "—"}</td>
+                          <td className="px-4 py-3 text-right text-sm text-gray-700">{s.seatbeltRate !== null ? s.seatbeltRate.toFixed(2) : "—"}</td>
+                          <td className="px-4 py-3 text-right text-sm text-gray-700">{s.distractionRate !== null ? s.distractionRate.toFixed(2) : "—"}</td>
+                          <td className="px-4 py-3 text-right text-sm text-gray-700">{s.dcr !== null ? `${s.dcr}%` : "—"}</td>
+                          <td className="px-4 py-3 text-right text-sm text-gray-700">{s.pod !== null ? `${s.pod}%` : "—"}</td>
+                          <td className="px-5 py-3 text-right text-sm text-gray-700">{s.packagesDelivered?.toLocaleString() ?? "—"}</td>
                         </tr>
                       ))}
                     </tbody>
