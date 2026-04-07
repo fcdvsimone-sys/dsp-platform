@@ -150,18 +150,14 @@ export default function DriverProfilePage() {
 
   useEffect(() => { load(); }, [id]);
 
-  async function loadTickets() {
-    if (ticketsLoaded) return;
-    const res = await fetch(`/api/support?driverId=${id}`);
-    const data = await res.json();
-    setTickets(data);
-    setTicketsLoaded(true);
-  }
-
   useEffect(() => {
-    if (tab === "support") loadTickets();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+    if (tab !== "support" || !id) return;
+    setTicketsLoaded(false);
+    setTickets([]);
+    fetch(`/api/support?driverId=${id}`)
+      .then((r) => r.json())
+      .then((data) => { setTickets(data); setTicketsLoaded(true); });
+  }, [tab, id]);
 
   if (loading) {
     return (
