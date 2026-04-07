@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Users, AlertTriangle, ClipboardList, TrendingUp, Clock, ChevronRight } from "lucide-react";
+import { Users, AlertTriangle, ClipboardList, TrendingUp, Clock, ChevronRight, Headphones, PhoneCall } from "lucide-react";
 import { format } from "date-fns";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -30,6 +30,13 @@ type DashboardData = {
     distractionRate: number | null; signalViolationRate: number | null;
   };
   latestWeek: string | null;
+};
+
+type SupportSummary = {
+  total: number;
+  totalTimeSecs: number;
+  byReason: { reason: string; count: number }[];
+  byDriver: { driverId: string | null; name: string; count: number; totalSecs: number }[];
 };
 
 const tierColors: Record<string, string> = {
@@ -88,15 +95,28 @@ function KpiCard({ label, value, icon: Icon, bg, text, sub, subWarn }: {
   );
 }
 
+function fmtTime(secs: number) {
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [data, setData] = useState<DashboardData | null>(null);
+  const [support, setSupport] = useState<SupportSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/dashboard")
-      .then((r) => r.json())
-      .then((d) => { setData(d); setLoading(false); });
+    Promise.all([
+      fetch("/api/dashboard").then((r) => r.json()),
+      fetch("/api/support?summary=1").then((r) => r.json()),
+    ]).then(([d, s]) => {
+      setData(d);
+      setSupport(s);
+      setLoading(false);
+    });
   }, []);
 
   if (loading || !data) {
@@ -312,6 +332,67 @@ export default function DashboardPage() {
                 )}
               </div>
             </div>
+
+            {/* Driver Support summary */}
+            {support && support.total > 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <p className="font-semibold text-gray-800 flex items-center gap-2">
+                      <Headphones size={16} className="text-blue-500" /> Driver Support Activity
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {support.total.toLocaleString()} total contacts · {fmtTime(support.totalTimeSecs)} total time
+                    </p>
+                  </div>
+                  <button onClick={() => router.push("/dashboard/support")} className="text-xs text-blue-600 hover:underline">
+                    View all
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Top reasons */}
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Top Contact Reasons</p>
+                    <div className="space-y-2.5">
+                      {support.byReason.slice(0, 4).map((r, i) => {
+                        const pct = Math.round((r.count / support.total) * 100);
+                        return (
+                          <div key={i}>
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-gray-600 truncate max-w-[70%]">{r.reason}</span>
+                              <span className="text-gray-500 font-medium shrink-0">{r.count} ({pct}%)</span>
+                            </div>
+                            <div className="w-full bg-gray-100 rounded-full h-1.5">
+                              <div className="bg-blue-400 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  {/* Top drivers */}
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Most Contacted Drivers</p>
+                    <div className="space-y-1.5">
+                      {support.byDriver.slice(0, 5).map((d, i) => (
+                        <div
+                          key={i}
+                          onClick={() => d.driverId && router.push(`/dashboard/drivers/${d.driverId}`)}
+                          className={`flex items-center gap-3 px-2 py-1.5 rounded-lg ${d.driverId ? "cursor-pointer hover:bg-gray-50 group" : ""}`}
+                        >
+                          <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs shrink-0">
+                            {i + 1}
+                          </div>
+                          <span className="flex-1 text-sm text-gray-700 truncate">{d.name ?? "Unknown"}</span>
+                          <span className="text-sm font-semibold text-gray-700 shrink-0">{d.count}</span>
+                          <PhoneCall size={12} className="text-gray-300 shrink-0" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* At-risk drivers */}
             {atRiskDrivers.length > 0 && (

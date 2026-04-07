@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft, Phone, Mail, Briefcase, Calendar, Shield,
   TrendingUp, ClipboardList, Plus, AlertTriangle, CheckCircle, Clock,
-  Pencil
+  Pencil, Headphones, PhoneCall
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import {
@@ -42,6 +42,19 @@ type Coaching = {
   signedAt: string | null;
   signatureUrl: string | null;
   driver: { id: string; firstName: string; lastName: string; employeeId: string; status: string };
+};
+
+type SupportTicket = {
+  id: string;
+  contactDate: string;
+  month: string;
+  contactReason: string | null;
+  driverIntent: string | null;
+  totalContactTimeSecs: number;
+  dnrInd: boolean;
+  successfulDeliveryInd: string | null;
+  successfulPackages: number;
+  failedPackages: number;
 };
 
 type Driver = {
@@ -123,7 +136,9 @@ export default function DriverProfilePage() {
   const [showEdit, setShowEdit] = useState(false);
   const [showNewCoaching, setShowNewCoaching] = useState(false);
   const [selectedCoaching, setSelectedCoaching] = useState<Coaching | null>(null);
-  const [tab, setTab] = useState<"scorecard" | "coaching">("scorecard");
+  const [tab, setTab] = useState<"scorecard" | "coaching" | "support">("scorecard");
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [ticketsLoaded, setTicketsLoaded] = useState(false);
 
   async function load() {
     const res = await fetch(`/api/drivers/${id}`);
@@ -134,6 +149,19 @@ export default function DriverProfilePage() {
   }
 
   useEffect(() => { load(); }, [id]);
+
+  async function loadTickets() {
+    if (ticketsLoaded) return;
+    const res = await fetch(`/api/support?driverId=${id}`);
+    const data = await res.json();
+    setTickets(data);
+    setTicketsLoaded(true);
+  }
+
+  useEffect(() => {
+    if (tab === "support") loadTickets();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
 
   if (loading) {
     return (
@@ -301,6 +329,14 @@ export default function DriverProfilePage() {
               </span>
             )}
           </button>
+          <button
+            onClick={() => setTab("support")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              tab === "support" ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-100"
+            }`}
+          >
+            <Headphones size={15} /> Support Tickets
+          </button>
         </div>
 
         {/* Scorecard tab */}
@@ -448,6 +484,106 @@ export default function DriverProfilePage() {
                   </div>
                 </div>
               ))
+            )}
+          </div>
+        )}
+
+        {/* Support tab */}
+        {tab === "support" && (
+          <div className="space-y-4">
+            {!ticketsLoaded ? (
+              <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">Loading...</div>
+            ) : tickets.length === 0 ? (
+              <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+                <Headphones size={40} className="mx-auto text-gray-300 mb-3" />
+                <p className="text-gray-500 text-sm">No driver support tickets on record</p>
+                <p className="text-xs text-gray-400 mt-1">Import tickets from the Support page</p>
+              </div>
+            ) : (
+              <>
+                {/* Summary stats */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-white rounded-xl border border-gray-200 p-4 text-center">
+                    <p className="text-2xl font-bold text-gray-900">{tickets.length}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Total Contacts</p>
+                  </div>
+                  <div className="bg-white rounded-xl border border-gray-200 p-4 text-center">
+                    <p className="text-2xl font-bold text-gray-900">
+                      {Math.round(tickets.reduce((a, t) => a + t.totalContactTimeSecs, 0) / 60)}m
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">Total Call Time</p>
+                  </div>
+                  <div className="bg-white rounded-xl border border-gray-200 p-4 text-center">
+                    <p className="text-2xl font-bold text-gray-900">
+                      {tickets.reduce((a, t) => a + t.failedPackages, 0)}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">Failed Packages</p>
+                  </div>
+                </div>
+
+                {/* Ticket list */}
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-gray-200 bg-gray-50">
+                        <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date & Time</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Reason</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Intent</th>
+                        <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Call Time</th>
+                        <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Failed Pkgs</th>
+                        <th className="text-center px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">DNR</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {tickets.map((t) => {
+                        const mins = Math.floor(t.totalContactTimeSecs / 60);
+                        const secs = t.totalContactTimeSecs % 60;
+                        return (
+                          <tr key={t.id} className="hover:bg-gray-50">
+                            <td className="px-5 py-3">
+                              <p className="text-sm font-medium text-gray-800">
+                                {format(new Date(t.contactDate), "MMM d, yyyy")}
+                              </p>
+                              <p className="text-xs text-gray-400">
+                                {format(new Date(t.contactDate), "h:mm a")}
+                              </p>
+                            </td>
+                            <td className="px-4 py-3">
+                              {t.contactReason ? (
+                                <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-blue-50 text-blue-700 px-2 py-1 rounded-full">
+                                  <PhoneCall size={11} /> {t.contactReason}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400 text-sm">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-600">{t.driverIntent || "—"}</td>
+                            <td className="px-4 py-3 text-right text-sm text-gray-700">
+                              {t.totalContactTimeSecs > 0
+                                ? mins > 0 ? `${mins}m ${secs}s` : `${secs}s`
+                                : "—"}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              {t.failedPackages > 0 ? (
+                                <span className="text-sm font-semibold text-red-600">{t.failedPackages}</span>
+                              ) : (
+                                <span className="text-sm text-gray-400">0</span>
+                              )}
+                            </td>
+                            <td className="px-5 py-3 text-center">
+                              {t.dnrInd ? (
+                                <span className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">Yes</span>
+                              ) : (
+                                <span className="text-xs text-gray-400">No</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         )}

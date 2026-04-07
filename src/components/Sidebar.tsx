@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, ClipboardList, TrendingUp, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, ClipboardList, TrendingUp, LogOut, Headphones } from "lucide-react";
 import { useClerk } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,7 @@ const nav = [
   { href: "/dashboard/drivers", label: "Drivers", icon: Users },
   { href: "/dashboard/scorecard", label: "Scorecard", icon: TrendingUp },
   { href: "/dashboard/coaching", label: "Coaching", icon: ClipboardList },
+  { href: "/dashboard/support", label: "Driver Support", icon: Headphones },
 ];
 
 export default function Sidebar() {
@@ -29,7 +30,7 @@ export default function Sidebar() {
             href={href}
             className={cn(
               "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-              pathname === href
+              pathname === href || (href !== "/dashboard" && pathname.startsWith(href))
                 ? "bg-blue-600 text-white"
                 : "text-gray-400 hover:bg-gray-800 hover:text-white"
             )}
