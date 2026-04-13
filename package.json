@@ -11,6 +11,8 @@
   "dependencies": {
     "@clerk/nextjs": "^6",
     "@hookform/resolvers": "^3",
+    "@neondatabase/serverless": "^1.0.2",
+    "@prisma/adapter-neon": "^7.7.0",
     "@prisma/client": "^6",
     "clsx": "^2",
     "date-fns": "^4",
@@ -24,6 +26,8 @@
     "recharts": "^2",
     "tailwind-merge": "^2",
     "twilio": "^5",
+    "ws": "^8.20.0",
+    "xlsx": "^0.18.5",
     "zod": "^3"
   },
   "devDependencies": {

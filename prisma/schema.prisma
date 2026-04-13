@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
@@ -76,6 +77,32 @@ model Coaching {
   updatedAt     DateTime @updatedAt
 
   driver        Driver   @relation(fields: [driverId], references: [id])
+}
+
+model Vehicle {
+  id                     String    @id @default(cuid())
+  vehicleId              String    @unique  // vehicleName from Amazon (e.g. EDV-28)
+  vin                    String?   @unique
+  licensePlate           String?
+  make                   String?
+  model                  String?
+  subModel               String?
+  year                   Int?
+  status                 String    @default("active")    // active, inactive
+  operationalStatus      String?                         // OPERATIONAL, GROUNDED
+  serviceType            String?
+  serviceTier            String?
+  ownershipType          String?                         // AMAZON_OWNED, AMAZON_RENTAL
+  vehicleProvider        String?
+  vehicleRegistrationType String?
+  ownershipStartDate     DateTime?
+  ownershipEndDate       DateTime?
+  registrationExpiryDate DateTime?
+  registeredState        String?
+  stationCode            String?
+  notes                  String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 }
 
 model SupportTicket {

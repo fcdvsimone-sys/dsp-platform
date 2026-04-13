@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, ClipboardList, TrendingUp, LogOut, Headphones } from "lucide-react";
+import { LayoutDashboard, Users, ClipboardList, TrendingUp, LogOut, Headphones, Car } from "lucide-react";
 import { useClerk } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +11,7 @@ const nav = [
   { href: "/dashboard/scorecard", label: "Scorecard", icon: TrendingUp },
   { href: "/dashboard/coaching", label: "Coaching", icon: ClipboardList },
   { href: "/dashboard/support", label: "Driver Support", icon: Headphones },
+  { href: "/dashboard/vehicles", label: "Vehicles", icon: Car },
 ];
 
 export default function Sidebar() {
